@@ -193,7 +193,15 @@ export default function ValidationPanel({
                   <h4 className="font-medium text-orange-800 mb-2">
                     {error.type === "invoice_consistency"
                       ? "Invoice Consistency Error"
-                      : error.type}
+                      : error.type === "invoice_total_calculation"
+                      ? "Invoice Total Calculation Error"
+                      : error.type === "invoice_net_total_calculation"
+                      ? "Invoice Net Total Calculation Error"
+                      : error.type === "line_item_uniqueness"
+                      ? "Line Item Uniqueness Error"
+                      : error.type
+                          .replace(/_/g, " ")
+                          .replace(/\b\w/g, (l) => l.toUpperCase())}
                   </h4>
                   <div className="text-sm space-y-1">
                     <div>

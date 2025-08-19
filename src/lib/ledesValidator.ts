@@ -492,6 +492,11 @@ export class LedesValidator {
       ...this.validateInvoiceNetTotalCalculation(dataset, headers)
     );
 
+    // Cross-row validation (invoice total calculation)
+    datasetErrors.push(
+      ...this.validateInvoiceTotalCalculation(dataset, headers)
+    );
+
     return { row_errors: rowErrors, dataset_errors: datasetErrors };
   }
 
@@ -756,6 +761,129 @@ export class LedesValidator {
         }
       } catch {
         // Invalid net totals will be caught by individual field validation
+      }
+    });
+
+    return errors;
+  }
+
+  private validateInvoiceTotalCalculation(
+    dataset: string[][],
+    headers: string[]
+  ): DatasetValidationError[] {
+    const errors: DatasetValidationError[] = [];
+
+    // Check if we have the required fields
+    if (
+      !headers.includes("INVOICE_TOTAL") ||
+      !headers.includes("LINE_ITEM_TOTAL")
+    ) {
+      return errors;
+    }
+
+    // Group by invoice identifier
+    const invoiceIdentifierFields = [
+      "INVOICE_DATE",
+      "LAW_FIRM_NAME",
+      "CLIENT_NAME",
+      "INVOICE_NUMBER",
+    ];
+
+    const availableIdentifiers = invoiceIdentifierFields.filter((field) =>
+      headers.includes(field)
+    );
+
+    if (availableIdentifiers.length === 0) {
+      return errors;
+    }
+
+    // Group rows by invoice
+    const invoices: Record<
+      string,
+      Array<{ rowIndex: number; invoiceTotal: string; lineItemTotal: string }>
+    > = {};
+
+    dataset.forEach((rowData, rowIndex) => {
+      const rowDict: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        rowDict[header] = rowData[index] || "";
+      });
+
+      // Create invoice key from available identifier fields
+      const invoiceKey = availableIdentifiers
+        .map((field) => rowDict[field] || "")
+        .join("|");
+
+      if (!invoices[invoiceKey]) {
+        invoices[invoiceKey] = [];
+      }
+
+      invoices[invoiceKey].push({
+        rowIndex,
+        invoiceTotal: rowDict["INVOICE_TOTAL"] || "",
+        lineItemTotal: rowDict["LINE_ITEM_TOTAL"] || "",
+      });
+    });
+
+    // Check calculation for each invoice
+    Object.entries(invoices).forEach(([invoiceKey, invoiceRows]) => {
+      if (invoiceRows.length === 0) {
+        return;
+      }
+
+      // Get the invoice total from the first row (should be consistent across all rows)
+      const expectedInvoiceTotal = invoiceRows[0].invoiceTotal;
+      if (!expectedInvoiceTotal || expectedInvoiceTotal.trim() === "") {
+        return;
+      }
+
+      try {
+        const expectedInvoiceTotalValue = parseFloat(
+          expectedInvoiceTotal.replace(/[^\d.-]/g, "")
+        );
+
+        // Sum all line item totals for this invoice
+        let actualSum = 0;
+        let validLineItems = 0;
+
+        invoiceRows.forEach(({ lineItemTotal }) => {
+          if (lineItemTotal && lineItemTotal.trim() !== "") {
+            try {
+              const lineItemValue = parseFloat(
+                lineItemTotal.replace(/[^\d.-]/g, "")
+              );
+              if (!isNaN(lineItemValue)) {
+                actualSum += lineItemValue;
+                validLineItems++;
+              }
+            } catch {
+              // Invalid line item totals will be caught by individual field validation
+            }
+          }
+        });
+
+        // Only validate if we have valid line items
+        if (validLineItems > 0) {
+          // Allow for small rounding differences (within 0.01)
+          if (Math.abs(actualSum - expectedInvoiceTotalValue) > 0.01) {
+            const identifierParts = invoiceKey.split("|");
+            const identifierStr = availableIdentifiers
+              .map((field, i) => `${field}=${identifierParts[i]}`)
+              .filter((part) => !part.endsWith("="))
+              .join(", ");
+
+            errors.push({
+              type: "invoice_total_calculation",
+              invoice_identifier: identifierStr,
+              error: `Invoice total (${expectedInvoiceTotalValue}) does not equal sum of line item totals (${actualSum.toFixed(
+                2
+              )})`,
+              affected_rows: invoiceRows.map((row) => row.rowIndex + 1),
+            });
+          }
+        }
+      } catch {
+        // Invalid invoice totals will be caught by individual field validation
       }
     });
 
