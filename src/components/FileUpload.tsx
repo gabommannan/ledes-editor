@@ -120,7 +120,6 @@ export default function FileUpload({
       <div className="text-sm text-gray-600">
         <h4 className="font-medium mb-2">File Format Requirements:</h4>
         <ul className="list-disc list-inside space-y-1">
-          <li>File must be in .txt format</li>
           <li>Data should be pipe-delimited (|)</li>
           <li>First line can be headers (optional)</li>
           <li>Supports all 52 LEDES98BI fields</li>

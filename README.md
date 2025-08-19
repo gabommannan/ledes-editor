@@ -46,7 +46,7 @@ npm start
 
 ### Loading Data
 
-1. **Upload File**: Drag and drop a .txt LEDES file or click "Choose File"
+1. **Upload File**: Drag and drop a LEDES file or click "Choose File"
 2. **Create New**: Start with an empty dataset
 
 ### Editing Data
