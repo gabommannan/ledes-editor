@@ -27,6 +27,14 @@ interface LedesTableProps {
 
 const columnHelper = createColumnHelper<LedesRow>();
 
+/**
+ * LedesTable component with keyboard navigation support:
+ * - Tab: Move to next cell (Shift+Tab: previous cell)
+ * - Enter: Move to cell below
+ * - Arrow keys: Navigate between cells (when cursor is at text boundaries)
+ * - Escape: Exit editing mode
+ */
+
 export default function LedesTable({
   data,
   headers,
@@ -44,6 +52,60 @@ export default function LedesTable({
     row: number;
     column: string;
   } | null>(null);
+
+  // Helper function to navigate to next/previous cell
+  const navigateToCell = useCallback(
+    (direction: "next" | "previous" | "down" | "up") => {
+      if (!editingCell) return;
+
+      const currentRowIndex = editingCell.row;
+      const currentColumnIndex = headers.indexOf(editingCell.column);
+      const totalRows = data.length;
+      const totalColumns = headers.length;
+
+      let newRowIndex = currentRowIndex;
+      let newColumnIndex = currentColumnIndex;
+
+      switch (direction) {
+        case "next":
+          newColumnIndex++;
+          if (newColumnIndex >= totalColumns) {
+            newColumnIndex = 0;
+            newRowIndex++;
+            if (newRowIndex >= totalRows) {
+              newRowIndex = 0; // Wrap to first row
+            }
+          }
+          break;
+        case "previous":
+          newColumnIndex--;
+          if (newColumnIndex < 0) {
+            newColumnIndex = totalColumns - 1;
+            newRowIndex--;
+            if (newRowIndex < 0) {
+              newRowIndex = totalRows - 1; // Wrap to last row
+            }
+          }
+          break;
+        case "down":
+          newRowIndex++;
+          if (newRowIndex >= totalRows) {
+            newRowIndex = 0; // Wrap to first row
+          }
+          break;
+        case "up":
+          newRowIndex--;
+          if (newRowIndex < 0) {
+            newRowIndex = totalRows - 1; // Wrap to last row
+          }
+          break;
+      }
+
+      const newColumn = headers[newColumnIndex];
+      setEditingCell({ row: newRowIndex, column: newColumn });
+    },
+    [editingCell, headers, data.length]
+  );
 
   const columns = useMemo(() => {
     return headers.map((header) =>
@@ -85,8 +147,47 @@ export default function LedesTable({
                   }
                   onBlur={() => setEditingCell(null)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === "Escape") {
-                      setEditingCell(null);
+                    switch (e.key) {
+                      case "Enter":
+                        e.preventDefault();
+                        navigateToCell("down");
+                        break;
+                      case "Tab":
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                          navigateToCell("previous");
+                        } else {
+                          navigateToCell("next");
+                        }
+                        break;
+                      case "ArrowDown":
+                        e.preventDefault();
+                        navigateToCell("down");
+                        break;
+                      case "ArrowUp":
+                        e.preventDefault();
+                        navigateToCell("up");
+                        break;
+                      case "ArrowRight":
+                        // Only navigate if cursor is at end of input
+                        if (
+                          e.currentTarget.selectionStart ===
+                          e.currentTarget.value.length
+                        ) {
+                          e.preventDefault();
+                          navigateToCell("next");
+                        }
+                        break;
+                      case "ArrowLeft":
+                        // Only navigate if cursor is at beginning of input
+                        if (e.currentTarget.selectionStart === 0) {
+                          e.preventDefault();
+                          navigateToCell("previous");
+                        }
+                        break;
+                      case "Escape":
+                        setEditingCell(null);
+                        break;
                     }
                   }}
                   className="w-full h-full border-none outline-none bg-transparent text-sm"
@@ -113,7 +214,7 @@ export default function LedesTable({
         maxSize: 300,
       })
     );
-  }, [headers, getCellValidation, onCellUpdate, editingCell]);
+  }, [headers, getCellValidation, onCellUpdate, editingCell, navigateToCell]);
 
   const table = useReactTable({
     data,
