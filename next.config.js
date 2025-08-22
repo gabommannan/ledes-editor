@@ -8,6 +8,8 @@ const nextConfig = {
    */
   ...(process.env.NODE_ENV === "production" && {
     output: "export",
+    trailingSlash: true,
+    distDir: "out",
   }),
 
   /**
@@ -17,7 +19,8 @@ const nextConfig = {
    * @see https://nextjs.org/docs/app/api-reference/next-config-js/basePath
    */
   ...(process.env.NODE_ENV === "production" && {
-    basePath: "/ledes-editor-web",
+    basePath: "/ledes-editor",
+    assetPrefix: "/ledes-editor",
   }),
 
   /**
